@@ -186,15 +186,30 @@ To run all the login checks in one step, use `tests/e2e.sh` from the repository 
 
    ![The LDAP login form](docs/images/03-ldap-login.png)
 
-4. A member sees the page with their user name.
+4. The first time that a user logs in, OpenShift asks the user to approve two permissions for the proxy:
+   `user:info` (read the user name and groups) and `user:check-access` (ask "can I do this?").
+   Click "Allow selected permissions". OpenShift keeps this approval, so it asks only one time.
+   If the user clicks "Deny", the proxy cannot log the user in.
+
+   ![OpenShift asks the user to approve the permissions of hello-oauth-proxy](docs/images/07-approve-permissions.png)
+
+5. A member sees the page with their user name.
 
    ![The page as john.doe](docs/images/05-hello-john-doe.png)
 
-5. A user who is not a member sees "403 Permission Denied".
+6. A user who is not a member sees "403 Permission Denied".
 
    ![The page that the proxy shows to alice.cooper](docs/images/06-denied-alice-cooper.png)
 
+7. A member clicks "Sign out". The proxy deletes its session cookie, and shows its sign-in page again.
+   A request after the sign-out, for example to `/whoami`, gets 403 until the user logs in again.
+   To come back, the user clicks "Log in with OpenShift", selects the identity provider and types the password again (measured in Chrome on CRC).
+
+   ![The sign-in page after "Sign out"](docs/images/08-signed-out.png)
+
 The screenshots are from CRC (OpenShift 4.22.14) with Google Chrome, on 2026-11-20.
+To show the approval page again for a user, delete the stored approval:
+`oc delete oauthclientauthorization <user>:system:serviceaccount:demo-rnd:hello-oauth-proxy`.
 
 ## 7. Values
 

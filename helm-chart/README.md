@@ -170,6 +170,8 @@ Click "Allow selected permissions".
 
 For a script, `/whoami` prints the user name as plain text, for example `user=jane.smith`.
 
+To run all the login checks in one step, use `tests/e2e.sh` from the repository root (read `tests/README.md`).
+
 ## 6. What the user sees
 
 1. The sign-in page of the proxy. Click "Log in with OpenShift".
@@ -374,7 +376,7 @@ oc delete group demo-rnd-viewers demo-rnd-editors
 ## 12. Test results
 
 Measured on CRC, OpenShift 4.22.14, with Helm 4.3.1, on 2026-11-20.
-The login tests used LDAP users and a script that posts the real login forms.
+The login tests used LDAP users and `tests/e2e.sh`, which posts the real login forms.
 
 | Test | Result |
 |---|---|

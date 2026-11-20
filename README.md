@@ -72,6 +72,7 @@ Each row says where you check it.
 | `manifests/option-b/` | The changes for Option B: a workload ServiceAccount, a token Secret and a Deployment. |
 | `manifests/checks/tls-check-job.yaml` | A Job that checks the proxy certificate with the service CA. |
 | `helm-chart/` | The same demo as a Helm chart, with its own README and screenshots. |
+| `tests/` | `e2e.sh`, the login tests of step 4 as one script, with its README. |
 | `docs/HANDOVER.md` | The state of the work, for the next person. |
 
 ## 4. How it works
@@ -388,6 +389,15 @@ Expected result: `Connection refused` for port 8080, and `proxy: 403` for port 8
 
 ## 9. Step 4: Test who can log in
 
+The checks in this step are also in one script, `tests/e2e.sh`. Read `tests/README.md`, then run:
+
+```bash
+export VIEWER_PASSWORD='...' EDITOR_PASSWORD='...' OUTSIDER_PASSWORD='...'
+tests/e2e.sh
+```
+
+Expected result: `RESULT: 0 failure(s)`. The steps below do the same checks by hand.
+
 ### 9.1 A user who is not logged in
 
 Get the host of the Route, and the CA of the router certificate for `curl`:
@@ -522,7 +532,7 @@ Read [helm-chart/README.md](helm-chart/README.md).
 ## 14. Test results
 
 Measured on CRC (OpenShift 4.22.14, `oc` 4.22.18) on 2026-11-20.
-The login tests used a script that posts the real login forms, and Google Chrome for the screenshots.
+The login tests used `tests/e2e.sh`, and Google Chrome for the screenshots.
 
 | Test | Manifests, Option A | Manifests, Option B | Helm chart |
 |---|---|---|---|

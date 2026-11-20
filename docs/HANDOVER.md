@@ -13,6 +13,7 @@ The tutorial and the Helm chart are complete, and both are tested end to end on 
 | `manifests/` | Access is no longer in the manifests: `50-rolebinding-members.yaml` is removed. A cluster administrator binds groups (step 1). The page shows the signed-in user with nginx SSI. | Deployed on CRC, 14 login checks passed for Option A and Option B |
 | `helm-chart/` | Chart `hello-oauth-proxy` 0.1.0. It renders the same application objects as `manifests/`. It adds Helm labels, a `checksum/content` annotation, the cookie Job and the `helm test` pod. | `helm lint`, a semantic diff of each object, and installs on CRC |
 | Screenshots | `helm-chart/docs/images/`, taken with Google Chrome through Playwright | 2026-11-20 |
+| `tests/e2e.sh` | The 14 login checks as one script. Passwords come from the environment. An exit trap puts the viewer back in its group. | 14 of 14 with `/bin/bash` 3.2. A wrong password and a `kill` behave as documented. shellcheck: clean |
 
 ## The cluster
 

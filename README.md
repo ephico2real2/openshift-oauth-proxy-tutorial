@@ -29,10 +29,10 @@ The status of each part follows.
 
 | Part | Source | State on 2026-11-20 |
 |---|---|---|
-| The nginx container | `podman run` of `ubi9/nginx-124:1-1795128187` as UID 54321, group 0, read-only root | Measured. `/` returns 200 "Hello World". The pod IP refuses the connection. `/whoami` prints the forwarded user. |
+| The nginx container | `podman run` of `ubi9/nginx-124:1-1795128187` as UID 54321, group 0, read-only root | Measured. `/` returns 200 "Hello World". The pod IP refuses the connection, also on CRC from another pod. `/whoami` prints the forwarded user. |
 | Proxy behavior | Source of `openshift/oauth-proxy` at commit `2c9e613` | Read from the source. |
 | OAuth server behavior | Source of `openshift/oauth-server` (master) and `openshift/library-go` | Read from the source. |
-| Parts 3 to 6 on a cluster | CRC | Not run yet. Run it on CRC and record the output here. |
+| Parts 3 to 6 on a cluster | CRC, OpenShift 4.22.14, `oc` 4.22.18 | Measured on 2026-11-20. Each expected result in Parts 3 to 6 matched. The browser logins ran as a `curl` script with a cookie jar, through the `developer` htpasswd identity provider. |
 
 ## Part 1: How an oauth-proxy sidecar works
 
@@ -174,10 +174,11 @@ Apply the base manifests:
 
 ```bash
 oc apply -f manifests/base/
-oc -n demo-rnd rollout status deployment/hello-nginx --timeout=120s
+oc -n demo-rnd rollout status deployment/hello-nginx --timeout=300s
 ```
 
 Expected result: `deployment "hello-nginx" successfully rolled out`, and the pod shows `2/2` in `oc -n demo-rnd get pods`.
+On the first run, the node pulls both images. On CRC the two pulls took 1m54s and 2m4s, one after the other.
 
 ## Part 4: Make sure that the certificates are in place
 
@@ -311,14 +312,20 @@ The results are the same, and the `client_id` in the `/oauth/start` redirect sti
 To see why the two must agree, edit the Deployment with `oc -n demo-rnd edit deployment hello-nginx`.
 Remove `-client-id` and `-client-secret-file`, and add `-openshift-service-account=hello-oauth-proxy` again, with the pod still on `hello-nginx`.
 The client secret is then the token of `hello-nginx`, and the OAuth server refuses the code exchange.
-Expected result: "Internal Error" after login, and `error redeeming code` in the proxy log.
+Expected result: "Internal Error" (status 500) after login, and this line in the proxy log:
+
+```text
+error redeeming code (client:...): got 400 from "https://oauth-openshift.<apps domain>/oauth/token" {"error":"unauthorized_client","error_description":"The client is not authorized to request a token using this method."}
+```
+
+Apply `manifests/option-b/41-deployment.yaml` again to restore Option B.
 
 ## Part 7: Troubleshooting
 
 | What you see | Cause | What to do |
 |---|---|---|
 | "Internal Error" after login, and `error redeeming code` with `x509: certificate signed by unknown authority` in the proxy log | The proxy does not trust the CA of the public OAuth route. | Make sure that `hello-nginx-trusted-ca` has data and is mounted, and that `-openshift-ca` names both files. |
-| "Internal Error" after login, and `error redeeming code` without x509 | The client secret is not a token of the client ServiceAccount. | Make sure that `serviceAccountName` matches `-openshift-service-account`, or use Option B. |
+| "Internal Error" after login, and `error redeeming code` without x509, for example `got 400 from ".../oauth/token" {"error":"unauthorized_client",...}` | The client secret is not a token of the client ServiceAccount. | Make sure that `serviceAccountName` matches `-openshift-service-account`, or use Option B. |
 | "Permission Denied" and "Invalid Account" | The SubjectAccessReview refused the user. | Run `oc auth can-i get service/hello-nginx -n demo-rnd` as that user. |
 | The OAuth server refuses the request with `invalid_request` or a redirect error | The redirect annotation names a Route that does not exist, or the Route has no admitted host. | Make sure that the annotation names `hello-nginx` and that `oc get route hello-nginx` shows a host. |
 | The pod stays in `ContainerCreating` | A Secret or ConfigMap that the pod mounts does not exist yet. | Run `oc -n demo-rnd describe pod -l app=hello-nginx` and create the missing object. The cookie secret is the usual one. |

@@ -73,7 +73,6 @@ Each row says where you check it.
 | `manifests/checks/tls-check-job.yaml` | A Job that checks the proxy certificate with the service CA. |
 | `helm-chart/` | The same demo as a Helm chart, with its own README and screenshots. |
 | `tests/` | `e2e.sh`, the login tests of step 4 as one script, with its README. |
-| `docs/HANDOVER.md` | The state of the work, for the next person. |
 
 ## 4. How it works
 

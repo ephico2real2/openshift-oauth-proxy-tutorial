@@ -1,0 +1,21 @@
+# reencrypt: the router ends TLS from the browser and opens a new TLS connection to the
+# proxy. With no destinationCACertificate, the router trusts the service CA.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Values.name | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.route.host }}
+  host: {{ . | quote }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ .Values.name | quote }}
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect

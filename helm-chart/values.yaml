@@ -1,0 +1,60 @@
+# Values for the hello-oauth-proxy chart.
+# Each value has a comment that says what it changes. The defaults are the tutorial demo.
+
+# The base name of the objects: the Deployment, the Service, the Route and the ConfigMaps.
+# The OAuth client ServiceAccount names the Route with this name, so if a cluster
+# administrator creates that ServiceAccount, they must use the same name in its annotation.
+name: hello-nginx
+
+images:
+  # The web server. It listens on 127.0.0.1 only, so only the proxy can reach it.
+  nginx: registry.access.redhat.com/ubi9/nginx-124:1-1795128187
+  # The OpenShift oauth-proxy. Use a tag that your cluster can pull.
+  oauthProxy: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.15
+  # The OpenShift CLI. Only the Job that creates the cookie secret uses it.
+  # Use the tag of your cluster minor version, for example v4.22.
+  cli: registry.redhat.io/openshift4/ose-cli-rhel9:v4.22
+
+serviceAccounts:
+  # The OAuth client of the proxy. It must have the redirect annotation that names the Route.
+  oauthClient:
+    # true: the chart creates the ServiceAccount.
+    # false: the chart does not create it. A cluster administrator creates it before the
+    #        install, from examples/serviceaccount-oauth-client.yaml, and you set its name.
+    create: true
+    name: hello-oauth-proxy
+
+  # Option B only. A separate ServiceAccount for the pod, for an application that calls the
+  # Kubernetes API with its own RBAC. The proxy then reads the client secret from a token
+  # Secret of the OAuth client ServiceAccount.
+  # Option A (enabled: false, the default): the pod runs as the OAuth client ServiceAccount.
+  workload:
+    enabled: false
+    # true: the chart creates it. false: a cluster administrator creates it from
+    # examples/serviceaccount-workload.yaml.
+    create: true
+    name: hello-nginx
+
+cookieSecret:
+  # The proxy signs the session cookie with a random key in the Secret
+  # <serviceAccounts.oauthClient.name>-cookie, key "session_secret".
+  # true: a Job of the chart creates the Secret before the install, only if it is missing.
+  #       The Job brings its own ServiceAccount, Role and RoleBinding.
+  # false: the chart creates no Job, no ServiceAccount and no Role for it. A cluster
+  #        administrator creates the Secret before the install with:
+  #   oc -n <namespace> create secret generic hello-oauth-proxy-cookie \
+  #     --from-literal=session_secret="$(openssl rand -base64 32 | tr -d '\n')"
+  createWithJob: true
+
+oauthProxy:
+  # How long a session lasts after login. The access check runs only at login, so a
+  # user who loses access keeps the page until the session ends. Keep it short.
+  cookieExpire: 1h
+
+route:
+  # Leave empty to let the router choose: <name>-<namespace>.<apps domain>.
+  host: ""
+
+page:
+  # The heading of the page.
+  title: Hello World

@@ -1,0 +1,95 @@
+# The page that nginx serves, and the nginx configuration.
+# nginx listens on 127.0.0.1 only. The oauth-proxy container in the same pod is the only
+# process that can reach it, so a call to the pod IP cannot bypass the login.
+# The page uses server side includes (SSI) to show the user name from the header
+# X-Forwarded-User, which the proxy sets. SSI "echo" escapes the value as HTML.
+# /whoami prints the same user name as plain text, for scripts.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-content
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>{{ .Values.page.title | html }}</title>
+      <style>
+        :root {
+          --bg-from: #0f2027; --bg-to: #2c5364;
+          --card: #ffffff; --text: #1f2933; --muted: #52606d;
+          --accent: #ee0000; --ok: #1e8e3e; --chip: #e6f4ea;
+        }
+        @media (prefers-color-scheme: dark) {
+          :root { --card: #1f2933; --text: #f5f7fa; --muted: #9aa5b1; --chip: #133d22; --ok: #6fd08c; }
+        }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+          font-family: "Red Hat Text", "Segoe UI", system-ui, sans-serif;
+          background: linear-gradient(135deg, var(--bg-from), var(--bg-to)); color: var(--text);
+        }
+        main {
+          width: 100%; max-width: 520px; background: var(--card); border-radius: 16px;
+          padding: 32px; box-shadow: 0 20px 50px rgba(0, 0, 0, .35); border-top: 6px solid var(--accent);
+        }
+        h1 { margin: 0 0 8px; font-size: 2.4rem; }
+        p { margin: 0 0 16px; color: var(--muted); line-height: 1.5; }
+        .chip {
+          display: inline-block; padding: 6px 14px; border-radius: 999px; font-weight: 600;
+          background: var(--chip); color: var(--ok); margin-bottom: 24px; word-break: break-all;
+        }
+        dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0 0 24px; }
+        dt { color: var(--muted); }
+        dd { margin: 0; font-family: ui-monospace, Menlo, monospace; }
+        a.button {
+          display: inline-block; padding: 10px 18px; border-radius: 8px; background: var(--accent);
+          color: #fff; text-decoration: none; font-weight: 600;
+        }
+      </style>
+    </head>
+    <body>
+      <main>
+        <h1>{{ .Values.page.title | html }}</h1>
+        <p>You are a member of the namespace, so the OpenShift oauth-proxy let you in.</p>
+        <span class="chip">Signed in as <!--# echo var="http_x_forwarded_user" default="unknown" --></span>
+        <dl>
+          <dt>Namespace</dt><dd>{{ .Release.Namespace }}</dd>
+          <dt>Served by</dt><dd>nginx behind oauth-proxy</dd>
+        </dl>
+        <a class="button" href="/oauth/sign_out">Sign out</a>
+      </main>
+    </body>
+    </html>
+  nginx.conf: |
+    worker_processes 1;
+    error_log /dev/stderr notice;
+    pid /tmp/nginx.pid;
+    events {
+        worker_connections 1024;
+    }
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        access_log    /dev/stdout;
+        client_body_temp_path /tmp/client_body;
+        proxy_temp_path       /tmp/proxy;
+        fastcgi_temp_path     /tmp/fastcgi;
+        uwsgi_temp_path       /tmp/uwsgi;
+        scgi_temp_path        /tmp/scgi;
+        server {
+            listen 127.0.0.1:8080;
+            root   /opt/app-root/src;
+            index  index.html;
+            ssi    on;
+            location = /whoami {
+                default_type text/plain;
+                return 200 "user=$http_x_forwarded_user\n";
+            }
+        }
+    }

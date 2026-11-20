@@ -1,0 +1,140 @@
+# nginx with an oauth-proxy sidecar.
+# Option A (default): the pod runs as the OAuth client ServiceAccount, and
+#   -openshift-service-account takes the client ID and the client secret from it.
+# Option B (serviceAccounts.workload.enabled: true): the pod runs as the workload
+#   ServiceAccount, and the proxy takes the client secret from the token Secret.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    app: {{ .Values.name | quote }}
+    {{- include "hello.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name | quote }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name | quote }}
+      annotations:
+        # A change to the ConfigMap (the page or the nginx configuration) restarts the pod.
+        # A new chart version also restarts it, because the ConfigMap labels change.
+        checksum/content: {{ include (print $.Template.BasePath "/configmap-content.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "hello.podServiceAccount" . | quote }}
+      containers:
+        - name: nginx
+          image: {{ .Values.images.nginx | quote }}
+          command: ["nginx", "-e", "/dev/stderr", "-g", "daemon off;"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: content
+              mountPath: /opt/app-root/src
+              readOnly: true
+            - name: content
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+        - name: oauth-proxy
+          image: {{ .Values.images.oauthProxy | quote }}
+          args:
+            - -provider=openshift
+            - -https-address=:8443
+            - -http-address=
+            - -upstream=http://127.0.0.1:8080
+            {{- if .Values.serviceAccounts.workload.enabled }}
+            - -client-id=system:serviceaccount:{{ .Release.Namespace }}:{{ .Values.serviceAccounts.oauthClient.name }}
+            - -client-secret-file=/etc/oauth-client/token
+            {{- else }}
+            - -openshift-service-account={{ .Values.serviceAccounts.oauthClient.name }}
+            {{- end }}
+            # Admit only users who can get this Service in this namespace. The roles "view",
+            # "edit" and "admin" grant it. The proxy runs this check once, at login.
+            - '-openshift-sar={"namespace":"{{ .Release.Namespace }}","resource":"services","resourceName":"{{ .Values.name }}","verb":"get"}'
+            # Giving -openshift-ca replaces the default, so name the ServiceAccount CA too.
+            - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            - -openshift-ca=/etc/pki/ca-trust/injected/ca-bundle.crt
+            - -tls-cert=/etc/tls/private/tls.crt
+            - -tls-key=/etc/tls/private/tls.key
+            - -cookie-secret-file=/etc/proxy/secrets/session_secret
+            - -cookie-expire={{ .Values.oauthProxy.cookieExpire }}
+            - -email-domain=*
+          ports:
+            - name: oauth-proxy
+              containerPort: 8443
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth-proxy
+              scheme: HTTPS
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth-proxy
+              scheme: HTTPS
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: cookie-secret
+              mountPath: /etc/proxy/secrets
+              readOnly: true
+            - name: trusted-ca
+              mountPath: /etc/pki/ca-trust/injected
+              readOnly: true
+            {{- if .Values.serviceAccounts.workload.enabled }}
+            - name: oauth-client-token
+              mountPath: /etc/oauth-client
+              readOnly: true
+            {{- end }}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+      volumes:
+        - name: content
+          configMap:
+            name: {{ .Values.name }}-content
+        - name: tmp
+          emptyDir: {}
+        - name: proxy-tls
+          secret:
+            secretName: {{ .Values.name }}-tls
+        - name: cookie-secret
+          secret:
+            # Created by the cookie Job (templates/cookie-secret-job.yaml) before install.
+            secretName: {{ include "hello.cookieSecretName" . }}
+        - name: trusted-ca
+          configMap:
+            name: {{ .Values.name }}-trusted-ca
+        {{- if .Values.serviceAccounts.workload.enabled }}
+        - name: oauth-client-token
+          secret:
+            secretName: {{ .Values.serviceAccounts.oauthClient.name }}-token
+            items:
+              - key: token
+                path: token
+        {{- end }}

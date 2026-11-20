@@ -22,7 +22,7 @@ spec:
       containers:
         - name: nginx
           image: registry.access.redhat.com/ubi9/nginx-124:1-1795128187
-          command: ["nginx", "-g", "daemon off;"]
+          command: ["nginx", "-e", "/dev/stderr", "-g", "daemon off;"]
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -1,0 +1,14 @@
+The page {{ .Values.name }} is installed in the namespace {{ .Release.Namespace }}.
+
+1. Wait for the pod:
+   oc -n {{ .Release.Namespace }} rollout status deployment/{{ .Values.name }}
+
+2. Check the certificate chain:
+   helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+3. Open the page:
+   echo "https://$(oc -n {{ .Release.Namespace }} get route {{ .Values.name }} -o jsonpath='{.status.ingress[0].host}')/"
+
+Only users who can get the Service {{ .Values.name }} in {{ .Release.Namespace }} can open it.
+This chart grants no access. A cluster administrator gives a group the role "view" (or more)
+in {{ .Release.Namespace }}, outside this chart. See "Prerequisites" in the chart README.

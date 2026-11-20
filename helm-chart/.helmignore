@@ -1,0 +1,4 @@
+# The screenshots are for the README on GitHub. They are not part of the chart package.
+docs/
+*.png
+.DS_Store

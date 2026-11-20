@@ -1,0 +1,7 @@
+apiVersion: v2
+name: hello-oauth-proxy
+description: An nginx "Hello World" page behind the OpenShift oauth-proxy. Only users who can get the Service in the release namespace can open it.
+type: application
+version: 0.1.0
+appVersion: "1.24"
+kubeVersion: ">=1.25.0-0"

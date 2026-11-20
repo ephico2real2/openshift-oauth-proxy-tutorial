@@ -1,0 +1,27 @@
+# Two CA ConfigMaps. You create them empty, and an OpenShift operator writes the data.
+#
+# 1. ANNOTATION service.beta.openshift.io/inject-cabundle: the service-ca operator writes the
+#    service CA into the key "service-ca.crt". That CA signs the proxy certificate. A client
+#    in the cluster uses it to verify https://<name>.<namespace>.svc (see the helm test).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-service-ca
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+---
+# 2. LABEL config.openshift.io/inject-trusted-cabundle (a label, not an annotation): the
+#    Cluster Network Operator writes the key "ca-bundle.crt". It holds the system trust store
+#    and the CAs in proxy/cluster spec.trustedCA. The proxy needs it for the code exchange
+#    at the public OAuth route, when a corporate CA signs *.apps.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-trusted-ca
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+    config.openshift.io/inject-trusted-cabundle: "true"

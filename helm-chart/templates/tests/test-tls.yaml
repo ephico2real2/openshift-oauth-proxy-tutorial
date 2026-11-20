@@ -1,0 +1,41 @@
+# helm test: calls the proxy through the Service and verifies its certificate with the
+# service CA that OpenShift wrote into <name>-service-ca. Success prints "OK".
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.name }}-test-tls
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      # The nginx image has curl, and the node has it already.
+      image: {{ .Values.images.nginx | quote }}
+      command:
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --cacert
+        - /etc/service-ca/service-ca.crt
+        - https://{{ .Values.name }}.{{ .Release.Namespace }}.svc/oauth/healthz
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+        - name: service-ca
+          mountPath: /etc/service-ca
+          readOnly: true
+  volumes:
+    - name: service-ca
+      configMap:
+        name: {{ .Values.name }}-service-ca

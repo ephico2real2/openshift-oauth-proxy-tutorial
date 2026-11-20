@@ -1,0 +1,13 @@
+# LABEL config.openshift.io/inject-trusted-cabundle (a label, not an annotation): the
+# Cluster Network Operator writes the key "ca-bundle.crt". It holds the system trust store
+# merged with the CAs in proxy/cluster spec.trustedCA. The proxy uses it as an extra
+# -openshift-ca, because the code exchange goes to the public OAuth route, and a
+# corporate CA that signs *.apps is not in the ServiceAccount ca.crt.
+# Ship it empty: the operator owns the data.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-nginx-trusted-ca
+  namespace: demo-rnd
+  labels:
+    config.openshift.io/inject-trusted-cabundle: "true"

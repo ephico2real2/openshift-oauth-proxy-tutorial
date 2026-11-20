@@ -1,0 +1,39 @@
+# The page that nginx serves, and the nginx configuration.
+# nginx listens on 127.0.0.1 only. The oauth-proxy container in the same pod is the
+# only process that can reach it, so a call to the pod IP cannot bypass the login.
+# /whoami prints the user name that the proxy sends in X-Forwarded-User.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-nginx-content
+  namespace: demo-rnd
+data:
+  index.html: |
+    <!doctype html>
+    <html><body><h1>Hello World</h1></body></html>
+  nginx.conf: |
+    worker_processes 1;
+    error_log /dev/stderr notice;
+    pid /tmp/nginx.pid;
+    events {
+        worker_connections 1024;
+    }
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        access_log    /dev/stdout;
+        client_body_temp_path /tmp/client_body;
+        proxy_temp_path       /tmp/proxy;
+        fastcgi_temp_path     /tmp/fastcgi;
+        uwsgi_temp_path       /tmp/uwsgi;
+        scgi_temp_path        /tmp/scgi;
+        server {
+            listen 127.0.0.1:8080;
+            root   /opt/app-root/src;
+            index  index.html;
+            location = /whoami {
+                default_type text/plain;
+                return 200 "user=$http_x_forwarded_user\n";
+            }
+        }
+    }

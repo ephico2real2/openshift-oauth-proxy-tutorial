@@ -1,0 +1,38 @@
+# Calls the proxy through the Service and verifies its certificate with the injected
+# service CA from hello-nginx-service-ca. Success prints "OK" from /oauth/healthz.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hello-nginx-tls-check
+  namespace: demo-rnd
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: curl
+          image: registry.access.redhat.com/ubi9/nginx-124:1-1795128187
+          command:
+            - curl
+            - --fail
+            - --silent
+            - --show-error
+            - --cacert
+            - /etc/service-ca/service-ca.crt
+            - https://hello-nginx.demo-rnd.svc/oauth/healthz
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: service-ca
+              mountPath: /etc/service-ca
+              readOnly: true
+      volumes:
+        - name: service-ca
+          configMap:
+            name: hello-nginx-service-ca

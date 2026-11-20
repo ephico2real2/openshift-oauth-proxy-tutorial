@@ -1,0 +1,116 @@
+# nginx with an oauth-proxy sidecar. The pod runs as the dedicated ServiceAccount
+# hello-oauth-proxy. -openshift-service-account takes the OAuth client ID from that name
+# and the client secret from the token that the pod mounts, so the two must agree.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-nginx
+  namespace: demo-rnd
+  labels:
+    app: hello-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-nginx
+  template:
+    metadata:
+      labels:
+        app: hello-nginx
+    spec:
+      serviceAccountName: hello-oauth-proxy
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-124:1-1795128187
+          command: ["nginx", "-g", "daemon off;"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: content
+              mountPath: /opt/app-root/src
+              readOnly: true
+            - name: content
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+        - name: oauth-proxy
+          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.15
+          args:
+            - -provider=openshift
+            - -https-address=:8443
+            - -http-address=
+            - -upstream=http://127.0.0.1:8080
+            - -openshift-service-account=hello-oauth-proxy
+            # Admit only users who can get the Service hello-nginx in demo-rnd. The
+            # "view", "edit" and "admin" roles in demo-rnd grant it. The proxy runs this
+            # review once, at login, with the token of the user.
+            - '-openshift-sar={"namespace":"demo-rnd","resource":"services","resourceName":"hello-nginx","verb":"get"}'
+            # Giving -openshift-ca replaces the default, so name the ServiceAccount CA too.
+            - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            - -openshift-ca=/etc/pki/ca-trust/injected/ca-bundle.crt
+            - -tls-cert=/etc/tls/private/tls.crt
+            - -tls-key=/etc/tls/private/tls.key
+            - -cookie-secret-file=/etc/proxy/secrets/session_secret
+            # A removed member keeps a session until it expires, so keep it short.
+            - -cookie-expire=1h
+            - -email-domain=*
+          ports:
+            - name: oauth-proxy
+              containerPort: 8443
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth-proxy
+              scheme: HTTPS
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: oauth-proxy
+              scheme: HTTPS
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: cookie-secret
+              mountPath: /etc/proxy/secrets
+              readOnly: true
+            - name: trusted-ca
+              mountPath: /etc/pki/ca-trust/injected
+              readOnly: true
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+      volumes:
+        - name: content
+          configMap:
+            name: hello-nginx-content
+        - name: tmp
+          emptyDir: {}
+        - name: proxy-tls
+          secret:
+            secretName: hello-nginx-tls
+        - name: cookie-secret
+          secret:
+            secretName: hello-oauth-proxy-cookie
+        - name: trusted-ca
+          configMap:
+            name: hello-nginx-trusted-ca

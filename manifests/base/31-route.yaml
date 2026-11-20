@@ -1,0 +1,18 @@
+# reencrypt: the router terminates TLS for the browser and opens a new TLS connection to
+# the proxy. With no destinationCACertificate, the router trusts the service CA, which
+# signed the proxy certificate. The host is left to the router:
+# hello-nginx-demo-rnd.<apps domain>.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: hello-nginx
+  namespace: demo-rnd
+spec:
+  to:
+    kind: Service
+    name: hello-nginx
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect

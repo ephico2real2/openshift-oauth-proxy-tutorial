@@ -1,0 +1,12 @@
+# ANNOTATION service.beta.openshift.io/inject-cabundle: the service-ca operator writes the
+# service CA certificate into the key "service-ca.crt". That CA signs every serving
+# certificate that the service-ca operator issues, which includes the proxy certificate in
+# the Secret hello-nginx-tls. A client in the cluster uses it to verify
+# https://hello-nginx.demo-rnd.svc. Ship it empty: the operator owns the data.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-nginx-service-ca
+  namespace: demo-rnd
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"

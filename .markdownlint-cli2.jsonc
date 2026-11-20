@@ -1,0 +1,13 @@
+{
+  // Cosmetic rules off, rules that catch real defects on.
+  "config": {
+    "default": true,
+    "MD013": false, // line-length: the prose is not hard-wrapped
+    "MD060": false, // table-column-style: pipe spacing
+    "MD022": false, // blanks-around-headings
+    "MD032": false, // blanks-around-lists
+    "MD026": false, // trailing-punctuation-in-heading
+    "MD024": { "siblings_only": true } // the same heading text under different sections
+  },
+  "ignores": [".git/**"]
+}
